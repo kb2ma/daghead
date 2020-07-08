@@ -8,13 +8,17 @@ See documentation:
   * `pkg/openwsn/doc.txt`
   * comments in `dist/tools/openvisualizer.inc.mk`
 
-Using samr21-xpro for all nodes.
+Using samr21-xpro for all nodes. Also removed use of channel hopping in flash commands.
 
 See section below on eliding join mode.
 
 ## Root node
 
-Flash with regular USB cable. See build/flash command in tests README.
+Flash with regular USB cable using command below.
+
+```
+   SERIAL=ATML2127031800001334 OPENSERIAL_BAUD=19200 USEMODULE=openwsn_serial BOARD=samr21-xpro CFLAGS="-DIEEE802154E_SINGLE_CHANNEL=26" make flash -j4
+```
 
 Run with USB TTL serial converter cable (3.3V logic).
 
@@ -32,7 +36,12 @@ After flashing or powering up, use OpenVisualizer. See that section below.
 
 ## Other nodes
 
-Flash and run with regular USB cable. See build/flash command in tests README. When running, the RIOT terminal menu includes good diagnostic information.
+Flash and run with regular USB cable. See command below. When running, the RIOT terminal menu includes good diagnostic information.
+
+```
+BOARD=samr21-xpro CFLAGS="-DIEEE802154E_SINGLE_CHANNEL=26" make all -j4
+BOARD=samr21-xpro SERIAL=ATML2127031800001700 make flash-only
+```
 
 ## OpenVisualizer
 
