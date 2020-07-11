@@ -8,7 +8,7 @@ See documentation:
   * `pkg/openwsn/doc.txt`
   * comments in `dist/tools/openvisualizer.inc.mk`
 
-Using samr21-xpro for all nodes. Also removed use of channel hopping in flash commands.
+Using samr21-xpro for all nodes. Configured to use a single channel (no hopping).
 
 See section below on eliding join mode.
 
