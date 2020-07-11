@@ -1,0 +1,6 @@
+github.com/lunixbochs/struc v0.0.0-20200707160740-784aaebc1d40 h1:EnfXoSqDfSNJv0VBNqY/88RNnhSGYkrHaO0mmFGbVsc=
+github.com/lunixbochs/struc v0.0.0-20200707160740-784aaebc1d40/go.mod h1:vy1vK6wD6j7xX6O6hXe621WabdtNkou2h7uRtTfRMyg=
+github.com/mikepb/go-serial v0.0.0-20180731022703-d5134cecf05a h1:dCv1LIqgkmFyW9NTRX16FANqPkGcyCZAPV54TMGUV+I=
+github.com/mikepb/go-serial v0.0.0-20180731022703-d5134cecf05a/go.mod h1:/GJho3VaF1qyrexGicbl96+cYZXep0Xr2hxYYwY/cpE=
+github.com/snksoft/crc v1.1.0 h1:HkLdI4taFlgGGG1KvsWMpz78PkOC9TkPVpTV/cuWn48=
+github.com/snksoft/crc v1.1.0/go.mod h1:5/gUOsgAm7OmIhb6WJzw7w5g2zfJi4FrHYgGPdshE+A=
