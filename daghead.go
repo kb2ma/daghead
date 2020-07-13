@@ -6,6 +6,7 @@ package main
 import (
 	"github.com/kb2ma/daghead/internal/log"
 	"github.com/mikepb/go-serial"
+	toml "github.com/pelletier/go-toml"
 	"github.com/snksoft/crc"
 	"sync"
 	"time"
@@ -20,7 +21,7 @@ func setDagRoot(wg *sync.WaitGroup, port *serial.Port) {
 	hash := crc.CalculateCRC(crc.X25, data[1:28])
 	data[28] = byte(hash & 0xFF)
 	data[29] = byte((hash & 0xFF00) >> 8)
-	log.Printf(log.INFO, "setDagRoot [% X]\n", data)
+	log.Printf(log.INFO, "setDagRoot % X\n", data)
 
 	_, err := port.Write(data[:])
 	if err != nil {
@@ -30,7 +31,22 @@ func setDagRoot(wg *sync.WaitGroup, port *serial.Port) {
 }
 
 func main() {
-	//log.ActiveLevel = log.DEBUG
+	config, err := toml.LoadFile("daghead.conf")
+	if err != nil {
+		log.Fatal(err)
+	}
+	levelStr := config.Get("log.level").(string)
+	switch levelStr {
+	case "ERROR":
+		log.SetLevel(log.ERROR)
+	case "WARN":
+		log.SetLevel(log.WARN)
+	case "DEBUG":
+		log.SetLevel(log.DEBUG)
+	default:
+		log.SetLevel(log.INFO)
+	}
+	log.Println(log.INFO, "Starting daghead")
 
 	options := serial.RawOptions
 	options.BitRate = 19200
