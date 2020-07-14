@@ -59,7 +59,6 @@ func readSerial(wg *sync.WaitGroup, port *serial.Port) {
 	defer wg.Done()
 
 	frameBuf := make([]byte, 0, 10)
-	frameLen := 0
 	isInFrame := false
 
 	for true {
@@ -72,32 +71,27 @@ func readSerial(wg *sync.WaitGroup, port *serial.Port) {
 		// At startup, position in stream from device is indeterminate. So must
 		// synchronize on first sequence of 0x7E 0x7E flag bytes.
 		if buf[0] == HDLC_FLAG {
-			if isInFrame && (frameLen > 0) {
-				log.Printf(log.DEBUG, "ending frame, len %d\n", frameLen)
-				data := frameBuf[:frameLen]
-				log.Println(log.DEBUG, data)
-				switch data[0] {
+			if isInFrame && (len(frameBuf) > 0) {
+				log.Printf(log.DEBUG, "ending frame, len %d\n", len(frameBuf))
+				log.Println(log.DEBUG, frameBuf)
+				switch frameBuf[0] {
 				case 'S':
-					readStatusFrame(data[3], data[4:4+frameLen-6])
+					readStatusFrame(frameBuf[3], frameBuf[4:4+len(frameBuf)-6])
 				case 'E':
-					readNotificationFrame(NOTIFICATION_ERROR, data[1:1+frameLen-3])
+					readNotificationFrame(NOTIFICATION_ERROR, frameBuf[1:1+len(frameBuf)-3])
 				case 'D':
 					readDataFrame()
 				}
 				isInFrame = false
-				frameLen = 0
 			} else {
 				log.Println(log.DEBUG, "starting frame")
 				isInFrame = true
-				frameBuf = make([]byte, 0, 10)
-				frameLen = 0   // defensive; ensure zeroed
+				frameBuf = frameBuf[:0]
 			}
 		} else {
-			frameBuf = append(frameBuf, buf[0])
 			if isInFrame {
-				frameLen++
+				frameBuf = append(frameBuf, buf[0])
 			}
-			//log.Println(buf)
 		}
 	}
 }
