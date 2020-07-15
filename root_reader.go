@@ -1,5 +1,7 @@
 package main
 
+// Functions and data around reading the incoming stream of data from the serial port.
+
 import (
 	"bytes"
 	"errors"
@@ -42,10 +44,11 @@ type Notification struct {
 	Arg2 uint16
 }
 
+// Handles HDLC escaping
 func decodeHdlc(buf []byte) (replBuf []byte, err error) {
 	replBuf = bytes.ReplaceAll(buf, HDLC_FLAG_ESCAPED, HDLC_FLAG_ARRAY)
 	replBuf = bytes.ReplaceAll(replBuf, HDLC_ESCAPE_ESCAPED, HDLC_ESCAPE_ARRAY)
-	crcBuf := replBuf[len(replBuf)-2:len(replBuf)]
+	crcBuf := replBuf[len(replBuf)-2:]
 
 	hash := crc.CalculateCRC(crc.X25, replBuf[:len(replBuf)-2])
 	if (byte(hash & 0xFF) != crcBuf[0]) || (byte((hash & 0xFF00) >> 8) != crcBuf[1]) {
@@ -54,7 +57,7 @@ func decodeHdlc(buf []byte) (replBuf []byte, err error) {
 	return
 }
 
-// Status type 0 is_sync; example [83 56 66 0 0 61 189]
+// Handles only status type 0, is_sync; example [83 56 66 0 0 61 189]
 func readStatusFrame(statusType byte, data []byte) {
 	if statusType == 0 {
 		buf := bytes.NewBuffer(data)
@@ -79,7 +82,7 @@ func readNotificationFrame(notificationLevel int, data []byte) {
 	}
 }
 
-func readDataFrame() {
+func readDataFrame(data []byte) {
 	log.Println(log.INFO, "got data")
 }
 
@@ -100,7 +103,7 @@ Note: It seems possible to handle this HDLC escaping inline, but we have impleme
 the handling after reception of the entire frame to follow OpenVisualizer for consistency.
 
 Since the serial port uses software based XON/XOFF flow control, XON (0x11) and
-XOFF (0x13) bytes also must be escaped within a frame. The escaped value is sent
+XOFF (0x13) data bytes within a frame also must be escaped. The escaped value is sent
 XORed with a mask byte (0x10). So, an incoming XON is escaped as the sequence 0x12 0x01,
 and XOFF is escaped as the sequence 0x12 0x03. An incoming escape byte (0x12) is
 escaped as the sequence 0x12 0x02. Handling for these escaped sequences is inline
@@ -129,13 +132,14 @@ func readSerial(wg *sync.WaitGroup, port *serial.Port) {
 
 				decoded, err := decodeHdlc(frameBuf)
 				if err == nil {
-					switch frameBuf[0] {
+					switch decoded[0] {
 					case 'S':
-						readStatusFrame(decoded[3], decoded[4:len(decoded)])
+						// decoded[1:3] is the mote ID
+						readStatusFrame(decoded[3], decoded[4:])
 					case 'E':
-						readNotificationFrame(NOTIFICATION_ERROR, decoded[1:len(decoded)])
+						readNotificationFrame(NOTIFICATION_ERROR, decoded[1:])
 					case 'D':
-						readDataFrame()
+						readDataFrame(decoded[1:])
 					}
 				} else {
 					log.Println(log.ERROR, err)
@@ -159,7 +163,7 @@ func readSerial(wg *sync.WaitGroup, port *serial.Port) {
 						frameBuf = append(frameBuf, buf[0] ^ FLOW_MASK)
 						isEscapingFlow = false
 
-					// Disregard raw XON/XOFF bytes as data. They should have been escaped.
+					// Disregard raw XON/XOFF bytes as data; should have been escaped.
 					} else if (buf[0] != FLOW_XON) && (buf[0] != FLOW_XOFF) {
 						frameBuf = append(frameBuf, buf[0])
 					}

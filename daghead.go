@@ -1,5 +1,15 @@
 /*
-RPL DODAG router app for an OpenWSN 6TiSCH network.
+daghead: RPL DODAG router app for an OpenWSN 6TiSCH network.
+
+Reads incoming data from root mote, and performs routine management.
+
+  * Prints error notifications from mote to daghead log.
+  * If the root mote is not actually set as DODAG root, does so. Presently avoids
+    use of Constrained Join Protocol for network motes by using a static network
+    key hardcoded into mote firmware.
+
+Since RPL operates in non-storing mode, reads ICMPv6 RPL messages to maintain a
+routing table for the network motes.
  */
 package main
 
@@ -31,6 +41,7 @@ func setDagRoot(wg *sync.WaitGroup, port *serial.Port) {
 }
 
 func main() {
+	// read config file for logging level
 	config, err := toml.LoadFile("daghead.conf")
 	if err != nil {
 		log.Fatal(err)
@@ -48,6 +59,7 @@ func main() {
 	}
 	log.Println(log.INFO, "Starting daghead")
 
+	// open serial port to root mote
 	options := serial.RawOptions
 	options.BitRate = 19200
 	options.FlowControl = serial.FLOWCONTROL_XONXOFF
