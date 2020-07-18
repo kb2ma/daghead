@@ -7,4 +7,5 @@ require (
 	github.com/mikepb/go-serial v0.0.0-20180731022703-d5134cecf05a
 	github.com/pelletier/go-toml v1.8.0 // indirect
 	github.com/snksoft/crc v1.1.0
+	github.com/stretchr/testify v1.6.1
 )

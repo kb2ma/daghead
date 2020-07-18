@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"errors"
 	"github.com/kb2ma/daghead/internal/log"
+	"github.com/kb2ma/daghead/internal/router"
 	"github.com/lunixbochs/struc"
 	"github.com/mikepb/go-serial"
 	"github.com/snksoft/crc"
@@ -78,12 +79,33 @@ func readNotificationFrame(notificationLevel int, data []byte) {
 	if err != nil {
 		log.Printf(log.ERROR, "err? %d\n", err)
 	} else {
-		log.Println(log.INFO, "got notification")
+		log.Printf(log.INFO, "got notification 0x%X: %d, %d\n", o.Code, o.Arg1, o.Arg2)
 	}
 }
 
+/*
+example
+00  44 38 42 C3 2D 00 00 00 46 1D 52 44 7B 43 76 78 82 54 7D 13
+20  76 65 79 78 F1 83 05 0B 7A 55 3A 82 54 7D 13 76 65 79 78 46
+40  1D 52 44 7B 43 76 78 9B 02 E1 08 00 40 00 01 BB BB 00 00 00
+60  00 00 00 46 1D 52 44 7B 43 76 78 06 14 00 00 00 AA BB BB 00
+80  00 00 00 00 00 46 1D 52 44 7B 43 76 78 B4 D1
+*/
 func readDataFrame(data []byte) {
-	log.Println(log.INFO, "got data")
+	// skip mote ID [:2], asn [2:7], destination [7:15], source [15:23]
+	log.Printf(log.INFO, "got data; len total %d, payload %d\n", len(data), len(data)-23)
+	if len(data) < 23 {
+		return
+	}
+	//hasHopByHopHeader := false
+	ipFields := router.ReadData(data[23], data[24:])
+
+	if ipFields["next_header"] == int(router.IANA_IPv6HOPHEADER) {
+		//hasHopByHopHeader := true
+		ipFields["next_header"] = ipFields["hop_next_header"]
+		// read inner header, expected to be IPHC (RFC 6282)
+		//innerFields := router.ReadData(data[23], data[ipFields["payload"]:])
+	}
 }
 
 /*
