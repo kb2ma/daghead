@@ -4,9 +4,9 @@ daghead: RPL DODAG router app for an OpenWSN 6TiSCH network.
 Reads incoming data from root mote, and performs routine management.
 
   * Prints error notifications from mote to daghead log.
-  * If the root mote is not actually set as DODAG root, does so. Presently avoids
-    use of Constrained Join Protocol for network motes by using a static network
-    key hardcoded into mote firmware.
+  * Sets the root mote as DODAG root. Assumes root mote is not already DODAG root.
+    Presently avoids use of Constrained Join Protocol for network motes by using a
+    static network key hardcoded into mote firmware.
 
 Since RPL operates in non-storing mode, reads ICMPv6 RPL messages to maintain a
 routing table for the network motes.
