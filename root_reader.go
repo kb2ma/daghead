@@ -36,6 +36,14 @@ type IsSync struct {
 	IsSync byte
 }
 
+type IdManager struct {
+	IsDagroot byte
+	PanId     [2]byte `struc:"little"`
+	Id16      [2]byte `struc:"little"`
+	Id64      [8]byte `struc:"little"`
+	Prefix    [8]byte `struc:"little"`
+}
+
 // mote_id, component, error_code, arg1, arg2 = struct.unpack('>HBBhH'
 type Notification struct {
 	MoteId [2]byte
@@ -66,9 +74,20 @@ func readStatusFrame(statusType byte, data []byte) {
 		o := &IsSync{}
 		err := struc.Unpack(buf, o)
 		if err != nil {
-			log.Printf(log.ERROR, "err? %d\n", err)
+			log.Printf(log.ERROR, "IsSync err %d\n", err)
 		} else {
 			log.Printf(log.INFO, "is sync? %d\n", o.IsSync)
+		}
+	// only needed to initialize router root node
+	} else if (statusType == 1) && (router.RootNode.Id == nil) {
+		buf := bytes.NewBuffer(data)
+		im := &IdManager{}
+		err := struc.Unpack(buf, im)
+		if err != nil {
+			log.Printf(log.ERROR, "IdManager err %d\n", err)
+		} else {
+			log.Printf(log.INFO, "IdManager [% X]\n", im.Id64)
+			router.InitRootNode(im.Id64)
 		}
 	}
 }

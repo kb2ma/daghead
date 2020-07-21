@@ -36,6 +36,7 @@ const (
 
 var (
 	NETWORK_PREFIX  = [8]byte{0xBB, 0xBB, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
+	RootNode RplNode
 )
 
 // Container for parsed IP header contents
@@ -43,6 +44,13 @@ type IpData struct {
 	Source [16]byte
 	Dest [16]byte
 	Fields map[string]int
+}
+
+// Routing table
+type RplNode struct {
+	Id []byte
+	sequence int
+	children []RplNode
 }
 
 /*
@@ -200,14 +208,53 @@ func ReadData(ip *IpData, preHop byte, data []byte) (err error) {
 	return
 }
 
+func InitRootNode(id [8]byte) {
+	RootNode = RplNode{Id: id[:], children: make([]RplNode, 0)}
+	log.Printf(log.INFO, "Created root node [% X]\n", id)
+}
+
 func ReadRpl(source *[16]byte, data []byte) {
-	// skip DAO header
+	// skip DAO header, except DAOSequence
+	sequence := int(data[3])
 	i := 20
 	log.Printf(log.INFO, "DAO from [% X]", source[8:])
-	if data[i] == RPL_TYPE_TRANSIT_INFORMATION {
-		// skip transit info header
-		i += 6
-		log.Printf(log.INFO, "parent [% X]", data[i+8:i+16])
+	for i < len(data) {
+		if data[i] == RPL_TYPE_TRANSIT_INFORMATION {
+			// skip transit info header
+			i += 6
+			log.Printf(log.INFO, "parent [% X]", data[i+8:i+16])
+			updateForChild(source[8:], sequence)
+			i += 16
+		}
 	}
 }
 
+// assumes single hop from root
+func updateForChild(childId []byte, sequence int) {
+	// assume RootNode is parent
+	found := false
+	for _, child := range RootNode.children {
+		isId := true
+		for i, b := range child.Id {
+			if b != childId[i] {
+				isId = false
+				break
+			}
+		}
+		if isId {
+			found = true
+			if child.sequence != sequence {
+				child.sequence = sequence
+				log.Printf(log.INFO, "updated [% X] DAO sequence for root parent to %d\n",
+				           child.Id, sequence)
+			}
+			break
+		}
+	}
+
+	if !found {
+		RootNode.children = append(RootNode.children,
+		                           RplNode{Id: childId, children: make([]RplNode, 0)})
+		log.Printf(log.INFO, "added child node [% X]\n", childId)
+	}
+}
