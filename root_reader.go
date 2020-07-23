@@ -20,14 +20,26 @@ const (
 	FLOW_XON    byte = 0x11
 	FLOW_XOFF   byte = 0x13
 	FLOW_MASK   byte = 0x10
+	HDR_FRAG1   byte = 0xC0
+	HDR_FRAGN   byte = 0xE0
+	HDR_FRAG_MASK byte = 0xF1
 )
 
-// These values really are constants, but a slice can't be a constant.
+type Fragment struct {
+	tag int
+	total int
+	received int
+	contents []byte
+}
+
 var (
+	// These values really are constants, but a slice can't be a constant.
 	HDLC_FLAG_ARRAY     = []byte{HDLC_FLAG}
 	HDLC_FLAG_ESCAPED   = []byte{HDLC_ESCAPE, 0x5E}
 	HDLC_ESCAPE_ARRAY   = []byte{HDLC_ESCAPE}
 	HDLC_ESCAPE_ESCAPED = []byte{HDLC_ESCAPE, 0x5D}
+
+	fragTable map[int]Fragment
 )
 
 const NOTIFICATION_ERROR int = 0
@@ -53,6 +65,10 @@ type Notification struct {
 	Arg2 uint16
 }
 
+func init() {
+	fragTable = make(map[int]Fragment)
+}
+
 // Handles HDLC escaping
 func decodeHdlc(buf []byte) (replBuf []byte, err error) {
 	replBuf = bytes.ReplaceAll(buf, HDLC_FLAG_ESCAPED, HDLC_FLAG_ARRAY)
@@ -76,7 +92,7 @@ func readStatusFrame(statusType byte, data []byte) {
 		if err != nil {
 			log.Printf(log.ERROR, "IsSync err %d\n", err)
 		} else {
-			log.Printf(log.INFO, "is sync? %d\n", o.IsSync)
+			log.Printf(log.DEBUG, "is sync? %d\n", o.IsSync)
 		}
 	// only needed to initialize router root node
 	} else if (statusType == 1) && (router.RootNode.Id == nil) {
@@ -104,17 +120,58 @@ func readNotificationFrame(notificationLevel int, data []byte) {
 }
 
 func readDataFrame(data []byte) {
-	// skip mote ID [:2], asn [2:7], destination [7:15], source [15:23]
 	log.Printf(log.DEBUG, "Decoded: [% X]\n", data)
 	log.Printf(log.INFO, "got data; len total %d, payload %d\n", len(data), len(data)-23)
 	if len(data) < 23 {
 		log.Printf(log.ERROR, "Data frame payload length too small %d/n", len(data))
 		return
 	}
+
+	// skip mote ID [:2], asn [2:7], destination [7:15], source [15:23]
+	i := 23
+	preHop := data[22]
+
+	// handle fragmentation if present
+	if (data[23] & HDR_FRAG_MASK) == HDR_FRAG1 {
+		// store first fragment in fragTable
+		total := int(((data[23] & 0x07) << 8) + data[24])
+		tag := int((data[25] << 8) + data[26])
+		received := len(data) - 27
+		frag := Fragment{tag: tag, total: total, received: received,
+			             contents: make([]byte, total)}
+		copy(frag.contents, data[27:])
+		fragTable[tag] = frag
+		log.Printf(log.DEBUG, "Created fragment %d, received %d of %d\n", tag, received, total)
+		return
+
+	} else if (data[23] & HDR_FRAG_MASK) == HDR_FRAGN {
+		// insert contents of a following fragment
+		total := int(((data[23] & 0x07) << 8) + data[24])
+		tag := int((data[25] << 8) + data[26])
+		offset := int(data[27])
+		received := len(data) - 28
+		if frag,ok := fragTable[tag]; ok {
+			copy(frag.contents[offset*8:], data[28:])
+			frag.received += received
+			if (frag.received == frag.total) {
+				i = 0
+				data = frag.contents
+				delete(fragTable, tag)
+				log.Printf(log.DEBUG, "Reassembled fragment %d, [% X]\n", tag, frag.contents)
+			} else {
+				log.Printf(log.DEBUG, "Updated fragment %d, received %d of %d\n",
+				           tag, received, total)
+				return
+			}
+		} else {
+			log.Printf(log.ERROR, "Can't find fragment %d\n", tag)
+			return
+		}
+	}
+
 	hasHopByHopHeader := false
 	ipData := new(router.IpData)
-	i := 23
-	if err := router.ReadData(ipData, data[22], data[i:]); err != nil {
+	if err := router.ReadData(ipData, preHop, data[i:]); err != nil {
 		log.Println(log.ERROR, err)
 		return
 	}
@@ -133,7 +190,7 @@ func readDataFrame(data []byte) {
 		// hop limit. Note OpenVisualizer works differently. It copies individual
 		// fields after this second ReadData(). It's possible that the approach
 		// here, although simpler, will be problematic in other scenarios.
-		router.ReadData(ipData, data[22], data[i:])
+		router.ReadData(ipData, preHop, data[i:])
 		if hopLimit != ipData.Fields["hop_limit"] {
 			ipData.Fields["hop_limit"] = hopLimit
 		}

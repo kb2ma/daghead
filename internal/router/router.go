@@ -223,38 +223,75 @@ func ReadRpl(source *[16]byte, data []byte) {
 			// skip transit info header
 			i += 6
 			log.Printf(log.INFO, "parent [% X]", data[i+8:i+16])
-			updateForChild(source[8:], sequence)
+			updateDownlink(data[i+8:i+16], source[8:], sequence)
+			i += 16
+		} else if data[i] == RPL_TYPE_TARGET_INFORMATION {
+			// skip target header
+			i += 4
+			log.Printf(log.INFO, "child [% X]", data[i+8:i+16])
 			i += 16
 		}
 	}
 }
 
-// assumes single hop from root
-func updateForChild(childId []byte, sequence int) {
-	// assume RootNode is parent
-	found := false
-	for _, child := range RootNode.children {
-		isId := true
-		for i, b := range child.Id {
-			if b != childId[i] {
-				isId = false
-				break
-			}
+// Verify ID matches node's ID
+func isNodeId(node *RplNode, id []byte) (bool) {
+	if len(id) != len(node.Id) {
+		return false
+	}
+	for i, b := range node.Id {
+		if b != id[i] {
+			return false
 		}
-		if isId {
-			found = true
+	}
+	return true
+}
+
+// recursive search for child with id, rooted at parent
+func findNode(parent *RplNode, id []byte) (*RplNode, bool) {
+	for i := range parent.children {
+		child := &parent.children[i]
+		if isNodeId(child, id) {
+			return child, true
+		}
+	}
+	for i := range parent.children {
+		child := &parent.children[i]
+		if node, ok := findNode(child, id); ok {
+			return node, ok
+		}
+	}
+	return nil, false
+}
+
+// Update routing table for parent->child downlink
+func updateDownlink(parentId []byte, childId []byte, sequence int) {
+	if isNodeId(&RootNode, parentId) {
+		updateForChild(&RootNode, childId, sequence)
+	} else {
+		if parent, ok := findNode(&RootNode, parentId); ok {
+			updateForChild(parent, childId, sequence)
+		} else {
+			log.Printf(log.ERROR, "Can't find link parent [% X]\n", parentId)
+		}
+	}
+}
+
+// Update routing table
+func updateForChild(parent *RplNode, childId []byte, sequence int) {
+	for i := range parent.children {
+		child := &parent.children[i]
+		if isNodeId(child, childId) {
 			if child.sequence != sequence {
 				child.sequence = sequence
-				log.Printf(log.INFO, "updated [% X] DAO sequence for root parent to %d\n",
-				           child.Id, sequence)
+				log.Printf(log.INFO, "update parent [% X] -> child [% X] DAO sequence to %d\n",
+				           parent.Id, child.Id, sequence)
 			}
-			break
+			return
 		}
 	}
 
-	if !found {
-		RootNode.children = append(RootNode.children,
-		                           RplNode{Id: childId, children: make([]RplNode, 0)})
-		log.Printf(log.INFO, "added child node [% X]\n", childId)
-	}
+	parent.children = append(parent.children,
+							 RplNode{Id: childId, children: make([]RplNode, 0)})
+	log.Printf(log.INFO, "added parent [% X] -> child [% X]\n", parent.Id, childId)
 }
